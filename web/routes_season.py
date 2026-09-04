@@ -43,6 +43,8 @@ from analysis.season_stats import (
 from . import season_sections as sec
 from .layout import esc, knss_filter_ui, page
 
+from data.teams_config import get_active_team_keyword, get_active_team_name
+
 
 season_bp = Blueprint("season", __name__)
 
@@ -108,7 +110,7 @@ def season_stats_menu():
 @season_bp.route("/season/<season>")
 def season_page(season):
     games_dir = current_app.config["GAMES_DIR"]
-    my_team_keyword = current_app.config["MY_TEAM_KEYWORD"]
+    my_team_keyword = get_active_team_keyword()
 
     season_dir = os.path.join(games_dir, season)
 
@@ -158,7 +160,10 @@ def season_page(season):
     # ------------------------------------------------------------------
 
     body = f"<p class='muted'>{len(games)} games tracked in this season.</p>"
-    body += knss_filter_ui(my_team_keyword)
+    body += knss_filter_ui(
+        my_team_keyword,
+        get_active_team_name(),
+    )
 
     body += sec.render_overview(overview)
     body += sec.render_standings(teams)

@@ -56,6 +56,57 @@ except ImportError:
 # ============================================================================
 # Loading / generic helpers
 # ============================================================================
+def _resolve_roster_aliases(game):
+    """Maps actual roster dict keys -> the canonical match['home_team']/
+    match['away_team'] name, by cross-referencing player squad numbers
+    seen in home/away-tagged events against each roster's player numbers.
+    Handles cases where the scoreboard uses a different name than the
+    roster section for the same club (e.g. 'FK VFK' vs
+    'Florbola klubs "VFK"' - seen in the VFK match reports)."""
+    match = game["match"]
+    home_team, away_team = match["home_team"], match["away_team"]
+    rosters = game.get("rosters", {})
+
+    if home_team in rosters and away_team in rosters:
+        return {}  # nothing to fix
+
+    side_numbers = {"home": set(), "away": set()}
+    for e in game.get("events", []):
+        side = e.get("side")
+        if side not in ("home", "away"):
+            continue
+        for m in re.finditer(r"#(\d+)", e.get("detail") or ""):
+            side_numbers[side].add(int(m.group(1)))
+
+    roster_numbers = {}
+    for key, players in rosters.items():
+        roster_numbers[key] = {
+            p["number"] for p in players
+            if isinstance(p, dict) and p.get("number") is not None
+        }
+
+    alias = {}
+    for side, team_name in (("home", home_team), ("away", away_team)):
+        wanted = side_numbers[side]
+        best_key, best_overlap = None, 0
+        for key, nums in roster_numbers.items():
+            overlap = len(wanted & nums)
+            if overlap > best_overlap:
+                best_overlap = overlap
+                best_key = key
+        if best_key:
+            alias[best_key] = team_name
+    return alias
+
+
+def normalize_roster_team_names(game):
+    alias = _resolve_roster_aliases(game)
+    if not alias:
+        return game
+    rosters = game.get("rosters", {})
+    game["rosters"] = {alias.get(k, k): v for k, v in rosters.items()}
+    return game
+
 
 def load_games(games_dir: str) -> list:
     """Load every *.json in games_dir in filename/chronological order."""
@@ -66,6 +117,7 @@ def load_games(games_dir: str) -> list:
             data = json.load(f)
 
         data["_source_file"] = os.path.basename(path)
+        normalize_roster_team_names(data)
         games.append(data)
 
     return games

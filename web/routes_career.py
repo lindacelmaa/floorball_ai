@@ -27,6 +27,8 @@ from .layout import (
     knss_filter_ui,
 )
 
+from data.teams_config import get_active_team_keyword, get_active_team_name
+
 def _team_filter_value(entry):
     """
     Build the string used for the KNSS-filter's substring match.
@@ -864,9 +866,7 @@ def career_page():
         "GAMES_DIR"
     ]
 
-    my_team_keyword = current_app.config[
-        "MY_TEAM_KEYWORD"
-    ]
+    my_team_keyword = get_active_team_keyword()
 
     if not os.path.isdir(games_dir):
 
@@ -906,7 +906,8 @@ def career_page():
     body = ""
 
     body += knss_filter_ui(
-        my_team_keyword
+        my_team_keyword,
+        get_active_team_name(),
     )
 
     body += (

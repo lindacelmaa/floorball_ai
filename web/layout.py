@@ -273,8 +273,13 @@ def subsection(title, content):
     )
 
 
-def knss_filter_ui(my_team_keyword: str) -> str:
+def knss_filter_ui(my_team_keyword: str, team_display_name: str = None) -> str:
+    """Checkbox that filters every stats table down to rows belonging to the
+    active team. `team_display_name` drives the visible label so it stays
+    correct after switching teams in Settings; `my_team_keyword` drives the
+    actual matching logic (same as before)."""
     keyword = my_team_keyword.lower()
+    label = team_display_name or my_team_keyword
 
     return f"""
 <label style="display:inline-block; margin-bottom:12px;">
@@ -282,7 +287,7 @@ def knss_filter_ui(my_team_keyword: str) -> str:
         type="checkbox"
         onchange="toggleKnssFilter(this)"
     >
-    Show only Kuldīgas KNSS
+    Show only {esc(label)}
 </label>
 
 <script>
