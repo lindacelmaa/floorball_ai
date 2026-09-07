@@ -1,8 +1,11 @@
 import cv2
+import pandas as pd
 from ultralytics import YOLO
 
 VIDEO = "match.webm"
-OUTPUT_VIDEO = "tracking_preview.mp4"
+OUTPUT_CSV = "tracking.csv"
+OUTPUT_VIDEO = "tracked_output.mp4"
+
 MAX_FRAMES = 3500
 
 model = YOLO("yolo26n.pt")
@@ -17,17 +20,13 @@ width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
 print(f"FPS: {fps}")
-print(f"Resolution: {width}x{height}")
-print(f"Creating preview from first {MAX_FRAMES} frames...")
+print(f"Processing first {MAX_FRAMES} frames...")
 
-# MP4 video writer
+# Set up video writer
 fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-out = cv2.VideoWriter(
-    OUTPUT_VIDEO,
-    fourcc,
-    fps,
-    (width, height)
-)
+writer = cv2.VideoWriter(OUTPUT_VIDEO, fourcc, fps, (width, height))
+
+tracking_data = []
 
 frame_number = 0
 
@@ -41,7 +40,7 @@ while frame_number < MAX_FRAMES:
 
     results = model.track(
         frame,
-        tracker="bytetrack.yaml",
+        tracker="botsort_tuned.yaml",
         conf=0.3,
         classes=[0],
         imgsz=960,
@@ -51,7 +50,10 @@ while frame_number < MAX_FRAMES:
 
     result = results[0]
 
-    # Draw tracking boxes and IDs
+    # Draw boxes/IDs on the frame and write it out
+    annotated_frame = result.plot()
+    writer.write(annotated_frame)
+
     if result.boxes is not None and result.boxes.id is not None:
 
         boxes = result.boxes.xyxy.cpu().numpy()
@@ -59,49 +61,36 @@ while frame_number < MAX_FRAMES:
         confidences = result.boxes.conf.cpu().numpy()
 
         for box, track_id, confidence in zip(
-            boxes, track_ids, confidences
+            boxes,
+            track_ids,
+            confidences
         ):
 
-            x1, y1, x2, y2 = map(int, box)
+            x1, y1, x2, y2 = box
 
-            track_id = int(track_id)
+            # Center point
+            x = (x1 + x2) / 2
+            y = (y1 + y2) / 2
 
-            # Draw bounding box
-            cv2.rectangle(
-                frame,
-                (x1, y1),
-                (x2, y2),
-                (0, 255, 0),
-                2
-            )
+            time_seconds = frame_number / fps
 
-            # ID text
-            label = f"Player {track_id} ({confidence:.2f})"
+            tracking_data.append({
+                "frame": frame_number,
+                "time": time_seconds,
+                "track_id": int(track_id),
 
-            cv2.putText(
-                frame,
-                label,
-                (x1, max(y1 - 10, 20)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                (0, 255, 0),
-                2
-            )
+                # Full bounding box
+                "x1": float(x1),
+                "y1": float(y1),
+                "x2": float(x2),
+                "y2": float(y2),
 
-    # Add frame/time information
-    current_time = frame_number / fps
+                # Center point
+                "x": float(x),
+                "y": float(y),
 
-    cv2.putText(
-        frame,
-        f"Time: {current_time:.2f}s",
-        (30, 40),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1,
-        (255, 255, 255),
-        2
-    )
-
-    out.write(frame)
+                "confidence": float(confidence)
+            })
 
     if frame_number % 100 == 0:
         print(f"Frame {frame_number}/{MAX_FRAMES}")
@@ -109,8 +98,14 @@ while frame_number < MAX_FRAMES:
     frame_number += 1
 
 cap.release()
-out.release()
+writer.release()
+
+df = pd.DataFrame(tracking_data)
+
+df.to_csv(OUTPUT_CSV, index=False)
 
 print()
 print(f"Finished! Processed {frame_number} frames.")
-print(f"Preview saved to: {OUTPUT_VIDEO}")
+print(f"Saved {len(df)} player detections.")
+print(f"Saved tracking data to: {OUTPUT_CSV}")
+print(f"Saved annotated video to: {OUTPUT_VIDEO}")

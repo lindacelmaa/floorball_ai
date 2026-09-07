@@ -1,0 +1,48 @@
+# Tuned BoT-SORT config for fast team-sport footage (frequent occlusion,
+# players clustered near the ball, same-color jerseys per team).
+# Based on ultralytics defaults, adjusted per param below.
+
+tracker_type: botsort
+
+# Lower = detections matched more readily in first pass (kept near default;
+# your detector already runs at conf=0.3 upstream, so most dets clear this).
+track_high_thresh: 0.25
+
+# Second-stage threshold for low-score matches (unchanged) — helps recover
+# partially-occluded players with weaker detection confidence.
+track_low_thresh: 0.1
+
+# RAISED from 0.25 -> 0.4: makes it harder to spawn a brand new ID when an
+# existing lost track could plausibly be recovered instead. Reduces the
+# "everyone gets a new ID every few seconds" behavior.
+new_track_thresh: 0.4
+
+# RAISED from 30 -> 90 (3 sec at 30fps): keeps lost tracks alive through
+# longer occlusions (players bunched around the ball, brief off-screen).
+# Tradeoff: slightly higher risk of an ID reattaching to the wrong player
+# if two similar-looking players cross paths during that window.
+track_buffer: 90
+
+# Association similarity threshold (unchanged, reasonable default).
+match_thresh: 0.8
+
+fuse_score: True
+
+# Camera motion compensation via sparse optical flow — keep enabled since
+# your footage pans/zooms with play.
+gmc_method: sparseOptFlow
+
+# Min IoU to even consider two tracks as ReID candidates (unchanged).
+proximity_thresh: 0.5
+
+# LOWERED from 0.8 -> 0.6: default is quite strict. Backbone-feature "auto"
+# ReID embeddings are noisier than a dedicated ReID model, especially for
+# players in identical team jerseys, so a slightly looser threshold gives
+# ReID more chance to actually contribute instead of always losing to
+# motion-only matching. Re-tighten if you start seeing wrong-player merges.
+appearance_thresh: 0.6
+
+# ENABLED: use backbone features for appearance matching. Cheap (no extra
+# model download/inference), helps most with short occlusions/overlaps.
+with_reid: True
+model: auto
